@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>초코에몽 대학 간식대항전 2025 🍫</title>
-<meta property="og:title" content="초코에몽 대학 간식대항전 2025">
+<title>초코에몽 대학 간식대항전 2026 🍫</title>
+<meta property="og:title" content="초코에몽 대학 간식대항전 2026">
 <meta property="og:description" content="우리 대학도 예몽이 당첨! 투표 1등 대학 전원에게 간식 폭탄!">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
@@ -666,27 +666,34 @@ body{
 </div><!-- /content -->
 
 <div class="footer">
-  © 2025 초코에몽 대학 간식대항전 · 본 이벤트는 공식 이벤트입니다<br>
-  문의: event@example.com
+  © 2026 초코에몽 대학 간식대항전 · 본 이벤트는 공식 이벤트입니다<br>
+  문의: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ea8f9c8f849eaa8f928b879a868fc4898587">[email&#160;protected]</a>
 </div>
 
 <!-- ══════════ JAVASCRIPT ══════════ -->
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 /* ──────────────────────────────────
    🔥 FIREBASE 설정
    Firebase Console에서 복사한 값으로 교체하세요!
 ────────────────────────────────── */
 const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey: "AIzaSyDsphxZGww6gBL9jjGkG8Lt85fItrdy8u8",
+  authDomain: "snack-event-2026.firebaseapp.com",
+  projectId: "snack-event-2026",
+  storageBucket: "snack-event-2026.firebasestorage.app",
+  messagingSenderId: "472126161115",
+  appId: "1:472126161115:web:42d60e628d928a9186ccfe"
 };
-firebase.initializeApp(firebaseConfig);
-const db      = firebase.firestore();
-const storage = firebase.storage();
+/* Firebase 설정값 유효성 체크 */
+const IS_FB_OK = firebaseConfig.apiKey !== "YOUR_API_KEY";
+let db, storage;
+if(IS_FB_OK){
+  firebase.initializeApp(firebaseConfig);
+  db      = firebase.firestore();
+  storage = firebase.storage();
+} else {
+  console.warn('[간식대항전] Firebase 설정값을 YOUR_API_KEY에서 실제 값으로 교체하세요.');
+}
 
 /* ──────────────────────────────────
    컨페티 애니메이션
@@ -756,6 +763,14 @@ function onFile(input){
   reader.readAsDataURL(f);
 }
 
+/* 타임아웃 헬퍼 — ms 초과 시 reject */
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('요청 시간이 초과됐습니다. 네트워크를 확인하고 다시 시도해주세요.')),ms))
+  ]);
+}
+
 async function doSubmit(){
   if(!selUni){alert('학교를 먼저 선택해주세요!');return;}
   const name=document.getElementById('iName').value.trim();
@@ -764,34 +779,62 @@ async function doSubmit(){
   if(!phone||phone.replace(/\D/g,'').length<10){alert('올바른 연락처를 입력해주세요!');return;}
   if(!document.getElementById('agreeChk').checked){alert('개인정보 수집 및 이용에 동의해주세요!');return;}
 
+  /* Firebase 설정 미완료 시 즉시 안내 */
+  if(!IS_FB_OK){
+    alert('⚠️ Firebase 설정이 완료되지 않았습니다.\nindex.html 안의 firebaseConfig 값을 실제 Firebase 프로젝트 값으로 교체해주세요.');
+    return;
+  }
+
   const btn=document.getElementById('submitBtn');
   btn.disabled=true;btn.textContent='참여 중...';
 
   try{
+    /* ── 1. 이미지 업로드 (선택 항목 — 실패해도 계속 진행) ── */
     let imgUrl='';
     if(selFile){
       const pw=document.getElementById('progWrap'),pb=document.getElementById('progBar');
       pw.style.display='block';
-      const ref=storage.ref(`receipts/${Date.now()}_${selFile.name}`);
-      const task=ref.put(selFile);
-      await new Promise((res,rej)=>task.on('state_changed',
-        s=>{pb.style.width=Math.round(s.bytesTransferred/s.totalBytes*100)+'%'},rej,res));
-      imgUrl=await ref.getDownloadURL();
+      try{
+        const ref=storage.ref(`receipts/${Date.now()}_${selFile.name}`);
+        const task=ref.put(selFile);
+        await withTimeout(
+          new Promise((res,rej)=>task.on('state_changed',
+            s=>{pb.style.width=Math.round(s.bytesTransferred/s.totalBytes*100)+'%'},rej,res)),
+          30000 /* 사진 업로드 최대 30초 */
+        );
+        imgUrl=await ref.getDownloadURL();
+      }catch(imgErr){
+        /* 이미지 업로드 실패 → 사진 없이 텍스트 데이터만 저장 */
+        console.warn('[간식대항전] 이미지 업로드 실패, 텍스트만 저장합니다.', imgErr.message);
+        pw.style.display='none';
+      }
     }
-    await db.collection('entries').add({
-      uni:selUni,name,phone,
-      studentId:document.getElementById('iStudentId').value.trim(),
-      email:document.getElementById('iEmail').value.trim(),
-      imgUrl,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
+
+    /* ── 2. Firestore 텍스트 데이터 저장 (최대 15초) ── */
+    await withTimeout(
+      db.collection('entries').add({
+        uni:      selUni,
+        name:     name,
+        phone:    phone,
+        studentId:document.getElementById('iStudentId').value.trim(),
+        email:    document.getElementById('iEmail').value.trim(),
+        imgUrl:   imgUrl,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      }),
+      15000
+    );
+
+    /* ── 3. 성공 ── */
     document.getElementById('formArea').style.display='none';
     document.getElementById('successArea').classList.add('on');
     document.getElementById('successTxt').textContent=
       `${name}님, ${selUni} 대표로 참여 완료!\n친구들에게도 알려주세요 💪\n가장 많은 참여자를 모은 학교에 초코에몽 간식 폭탄이 터집니다!`;
+
   }catch(e){
-    alert('오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n('+e.message+')');
-    btn.disabled=false;btn.textContent='🍫 참여하기!';
+    alert('참여 처리 중 오류가 발생했습니다.\n' + e.message);
+    btn.disabled=false;
+    btn.textContent='🍫 참여하기!';
+    document.getElementById('progWrap').style.display='none';
   }
 }
 
@@ -849,13 +892,4 @@ async function loadDash(){
 
 function switchTab(tab,btn){
   document.getElementById('tab-event').style.display=tab==='event'?'':'none';
-  document.getElementById('tab-dash').style.display=tab==='dash'?'':'none';
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  if(tab==='dash')loadDash();
-}
-
-renderGrid(UNIS);
-</script>
-</body>
-</html>
+  document.getElementById('tab-dash').
