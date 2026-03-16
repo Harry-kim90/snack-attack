@@ -882,6 +882,7 @@ async function doSubmit(){
     await withTimeout(
       db.collection('entries').add({
         uni:      selUni,
+        region:   selRegion,
         name:     name,
         phone:    phone,
         studentId:document.getElementById('iStudentId').value.trim(),
@@ -927,22 +928,33 @@ function resetAll(){
 }
 
 async function loadDash(){
-  document.getElementById('rankArea').innerHTML='<div class="state-msg"><span class="spin"></span>집계 중...</div>';
+  const rankArea = document.getElementById('rankArea');
+
+  /* Firebase 미설정 안내 */
+  if(!IS_FB_OK){
+    rankArea.innerHTML='<div class="state-msg">⚠️ Firebase 설정이 필요합니다.<br>index.html의 firebaseConfig를 실제 값으로 교체해주세요.</div>';
+    document.getElementById('dTotal').textContent='–';
+    document.getElementById('dSchools').textContent='–';
+    document.getElementById('dTop').textContent='–';
+    return;
+  }
+
+  rankArea.innerHTML='<div class="state-msg"><span class="spin"></span>집계 중...</div>';
   try{
-    const snap=await db.collection('entries').get();
+    const snap=await withTimeout(db.collection('entries').get(), 15000);
     const counts={};let total=0;
-    snap.forEach(doc=>{const d=doc.data();counts[d.uni]=(counts[d.uni]||0)+1;total++;});
+    snap.forEach(doc=>{const d=doc.data();if(d.uni){counts[d.uni]=(counts[d.uni]||0)+1;total++;}});
     const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
     document.getElementById('dTotal').textContent=total.toLocaleString();
     document.getElementById('dSchools').textContent=sorted.length;
     document.getElementById('dTop').textContent=sorted[0]?sorted[0][0]:'-';
     if(!sorted.length){
-      document.getElementById('rankArea').innerHTML='<div class="state-msg">아직 참여자가 없어요 😢<br>첫 번째 주인공이 되어주세요!</div>';
+      rankArea.innerHTML='<div class="state-msg">아직 참여자가 없어요 😢<br>첫 번째 주인공이 되어주세요!</div>';
       return;
     }
     const max=sorted[0][1];
     const medals=['🥇','🥈','🥉'];
-    document.getElementById('rankArea').innerHTML=sorted.map(([uni,cnt],i)=>{
+    rankArea.innerHTML=sorted.map(([uni,cnt],i)=>{
       const cls=i<3?'r'+(i+1):'';
       return `<div class="rank-item ${cls}">
         <div class="rnum">${i<3?medals[i]:i+1}</div>
@@ -954,10 +966,19 @@ async function loadDash(){
       </div>`;
     }).join('');
   }catch(e){
-    document.getElementById('rankArea').innerHTML='<div class="state-msg">데이터를 불러오지 못했습니다.<br>Firebase 설정을 확인해주세요.</div>';
+    rankArea.innerHTML='<div class="state-msg">데이터를 불러오지 못했습니다.<br>'+e.message+'</div>';
   }
 }
 
 function switchTab(tab,btn){
   document.getElementById('tab-event').style.display=tab==='event'?'':'none';
-  document.getElementById('tab-dash').
+  document.getElementById('tab-dash').style.display=tab==='dash'?'':'none';
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(tab==='dash') loadDash();
+}
+/* 초기 렌더링 */
+renderGrid();
+</script>
+</body>
+</html>
