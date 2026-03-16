@@ -362,6 +362,23 @@ td.time{font-size:11px;color:var(--txt3)}
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
 .badge-img{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.25)}
 .badge-no{background:rgba(255,255,255,.05);color:var(--txt3);border:1px solid var(--border)}
+
+/* 랭킹 지역 탭 */
+.rank-rtab{
+  padding:6px 14px;background:transparent;border:none;border-radius:7px;
+  color:var(--txt3);font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:all .15s;
+}
+.rank-rtab:hover{color:var(--txt2)}
+.rank-rtab.active{background:rgba(245,200,66,.15);color:var(--accent)}
+
+/* 지역 뱃지 (테이블 셀) */
+.region-badge{
+  display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;
+  font-size:10px;font-weight:700;white-space:nowrap;
+}
+.region-seoul{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.2)}
+.region-gyeong{background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.2)}
 </style>
 </head>
 <body>
@@ -454,6 +471,11 @@ td.time{font-size:11px;color:var(--txt3)}
         <div class="search-box">
           <input type="text" id="searchInput" placeholder="이름, 학교, 연락처 검색..." oninput="applyFilter()">
         </div>
+        <select class="filter-sel" id="regionFilter" onchange="applyFilter()">
+          <option value="">전체 지역</option>
+          <option value="서울">🏙️ 서울</option>
+          <option value="경기">🌿 경기</option>
+        </select>
         <select class="filter-sel" id="uniFilter" onchange="applyFilter()">
           <option value="">전체 학교</option>
         </select>
@@ -469,6 +491,7 @@ td.time{font-size:11px;color:var(--txt3)}
               <tr>
                 <th style="width:42px">#</th>
                 <th class="sort" onclick="sortBy('name')">이름</th>
+                <th class="sort" onclick="sortBy('region')">지역</th>
                 <th class="sort" onclick="sortBy('uni')">학교</th>
                 <th>연락처</th>
                 <th>학번/학과</th>
@@ -494,7 +517,14 @@ td.time{font-size:11px;color:var(--txt3)}
           <div class="page-title">학교 랭킹</div>
           <div class="page-sub">참여자 수 기준 실시간 순위</div>
         </div>
-        <button class="action-btn btn-refresh" onclick="renderRanking()">🔄 새로고침</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:4px;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:10px;padding:3px">
+            <button class="rank-rtab active" id="rtab-all"    onclick="setRankRegion('all',this)"   >전체</button>
+            <button class="rank-rtab"        id="rtab-seoul"  onclick="setRankRegion('서울',this)"  >🏙️ 서울</button>
+            <button class="rank-rtab"        id="rtab-gyeong" onclick="setRankRegion('경기',this)"  >🌿 경기</button>
+          </div>
+          <button class="action-btn btn-refresh" onclick="renderRanking()">🔄 새로고침</button>
+        </div>
       </div>
 
       <div class="rank-grid">
@@ -542,18 +572,52 @@ const firebaseConfig = {
 ──────────────────────────────── */
 const ADMIN_PASSWORD = "snack2025!";
 
-/* ────────────────────────────────
-   초기화
-──────────────────────────────── */
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+/* Firebase 설정값 유효성 체크 */
+const IS_FB_OK = firebaseConfig.apiKey !== "YOUR_API_KEY";
+let db;
+if(IS_FB_OK){
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+}
 
-let allEntries  = [];   // 전체 데이터
-let filtered    = [];   // 필터링된 데이터
+/* ────────────────────────────────
+   대학 데이터 (지역 매핑)
+──────────────────────────────── */
+const UNI_REGION = {};
+const UNI_DATA = {
+  '서울': [
+    '가톨릭대학교','건국대학교','경희대학교','고려대학교','광운대학교',
+    '국민대학교','동국대학교','명지대학교','상명대학교','서강대학교',
+    '서울과학기술대학교','서울교육대학교','서울대학교','서울시립대학교',
+    '서울여자대학교','성균관대학교','성신여자대학교','세종대학교',
+    '숙명여자대학교','숭실대학교','연세대학교','이화여자대학교',
+    '중앙대학교','총신대학교','추계예술대학교','한국외국어대학교',
+    '한국예술종합학교','한성대학교','한양대학교','홍익대학교'
+  ],
+  '경기': [
+    '가천대학교','가톨릭대학교','강남대학교','경기대학교',
+    '경희대학교 국제캠퍼스','국립한경대학교','단국대학교 죽전캠퍼스',
+    '대진대학교','루터대학교','명지대학교 자연캠퍼스','서울신학대학교',
+    '서울장신대학교','성결대학교','수원대학교','수원가톨릭대학교',
+    '아주대학교','안양대학교','예원예술대학교 양주캠퍼스','용인대학교',
+    '을지대학교','중앙대학교 안성캠퍼스','중앙승가대학교','차의과학대학교',
+    '칼빈대학교','평택대학교','한경대학교','한국공학대학교',
+    '한국항공대학교','한북대학교','한세대학교','한신대학교',
+    '한양대학교 ERICA캠퍼스','협성대학교'
+  ]
+};
+Object.entries(UNI_DATA).forEach(([region, unis]) => unis.forEach(u => { UNI_REGION[u] = region; }));
+
+/* ────────────────────────────────
+   상태
+──────────────────────────────── */
+let allEntries  = [];
+let filtered    = [];
 let currentPage = 1;
 const PAGE_SIZE = 20;
 let sortKey     = 'createdAt';
 let sortDir     = 'desc';
+let rankRegion  = 'all';
 
 /* ────────────────────────────────
    로그인
@@ -565,6 +629,10 @@ function doLogin(){
   if(pw === ADMIN_PASSWORD){
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('adminScreen').classList.add('show');
+    if(!IS_FB_OK){
+      alert('⚠️ Firebase 설정이 완료되지 않았습니다.\nadmin.html 안의 firebaseConfig 값을 실제 값으로 교체해주세요.');
+      return;
+    }
     loadData();
   } else {
     document.getElementById('loginErr').classList.add('show');
@@ -590,10 +658,12 @@ async function loadData(){
     allEntries = [];
     snap.forEach(doc => {
       const d = doc.data();
+      const uni = d.uni || '-';
       allEntries.push({
         id:        doc.id,
         name:      d.name      || '-',
-        uni:       d.uni       || '-',
+        uni:       uni,
+        region:    UNI_REGION[uni] || d.region || '-',
         phone:     d.phone     || '-',
         studentId: d.studentId || '',
         email:     d.email     || '',
@@ -601,7 +671,6 @@ async function loadData(){
         createdAt: d.createdAt ? d.createdAt.toDate() : new Date(0)
       });
     });
-
     updateStats();
     buildUniFilter();
     applyFilter();
@@ -614,16 +683,15 @@ async function loadData(){
 }
 
 /* ────────────────────────────────
-   통계 업데이트
+   통계
 ──────────────────────────────── */
 function updateStats(){
-  const total   = allEntries.length;
-  const schools = new Set(allEntries.map(e=>e.uni)).size;
-  const withImg = allEntries.filter(e=>e.imgUrl).length;
-  const rate    = total ? Math.round(withImg/total*100) : 0;
-  const today   = new Date(); today.setHours(0,0,0,0);
-  const todayCnt= allEntries.filter(e=>e.createdAt >= today).length;
-
+  const total    = allEntries.length;
+  const schools  = new Set(allEntries.map(e=>e.uni)).size;
+  const withImg  = allEntries.filter(e=>e.imgUrl).length;
+  const rate     = total ? Math.round(withImg/total*100) : 0;
+  const today    = new Date(); today.setHours(0,0,0,0);
+  const todayCnt = allEntries.filter(e=>e.createdAt >= today).length;
   document.getElementById('sTotalEntries').textContent = total.toLocaleString();
   document.getElementById('sTotalSchools').textContent = schools;
   document.getElementById('sImgRate').textContent      = rate + '%';
@@ -632,10 +700,17 @@ function updateStats(){
 }
 
 /* ────────────────────────────────
-   학교 필터 드롭다운 구성
+   학교 필터 드롭다운 — 지역 필터 연동
 ──────────────────────────────── */
 function buildUniFilter(){
-  const unis  = [...new Set(allEntries.map(e=>e.uni))].sort();
+  const region = document.getElementById('regionFilter').value;
+  // 지역 선택 시 해당 지역 대학만, 아니면 실제 참여 학교 전체
+  let unis;
+  if(region && UNI_DATA[region]){
+    unis = UNI_DATA[region].filter(u => allEntries.some(e=>e.uni===u));
+  } else {
+    unis = [...new Set(allEntries.map(e=>e.uni))].sort();
+  }
   const sel   = document.getElementById('uniFilter');
   const saved = sel.value;
   sel.innerHTML = '<option value="">전체 학교</option>' +
@@ -647,12 +722,15 @@ function buildUniFilter(){
    필터 + 정렬
 ──────────────────────────────── */
 function applyFilter(){
-  const q   = document.getElementById('searchInput').value.trim().toLowerCase();
-  const uni = document.getElementById('uniFilter').value;
-  filtered  = allEntries.filter(e=>{
-    const matchQ  = !q || [e.name,e.uni,e.phone,e.studentId,e.email].some(v=>v.toLowerCase().includes(q));
-    const matchU  = !uni || e.uni === uni;
-    return matchQ && matchU;
+  buildUniFilter();
+  const q      = document.getElementById('searchInput').value.trim().toLowerCase();
+  const uni    = document.getElementById('uniFilter').value;
+  const region = document.getElementById('regionFilter').value;
+  filtered = allEntries.filter(e=>{
+    const matchQ = !q || [e.name,e.uni,e.phone,e.studentId,e.email,e.region].some(v=>String(v).toLowerCase().includes(q));
+    const matchU = !uni    || e.uni    === uni;
+    const matchR = !region || e.region === region;
+    return matchQ && matchU && matchR;
   });
   sortEntries();
   currentPage = 1;
@@ -660,9 +738,9 @@ function applyFilter(){
 }
 
 function sortBy(key){
-  if(sortKey === key) sortDir = sortDir==='asc'?'desc':'asc';
+  if(sortKey===key) sortDir = sortDir==='asc'?'desc':'asc';
   else { sortKey=key; sortDir='asc'; }
-  document.querySelectorAll('th.sort').forEach(th=>{th.classList.remove('asc','desc')});
+  document.querySelectorAll('th.sort').forEach(th=>th.classList.remove('asc','desc'));
   const th = [...document.querySelectorAll('th.sort')].find(t=>t.getAttribute('onclick')===`sortBy('${key}')`);
   if(th) th.classList.add(sortDir);
   sortEntries();
@@ -673,7 +751,7 @@ function sortEntries(){
     let av=a[sortKey], bv=b[sortKey];
     if(sortKey==='createdAt'){ av=av.getTime(); bv=bv.getTime(); }
     else { av=String(av).toLowerCase(); bv=String(bv).toLowerCase(); }
-    return sortDir==='asc' ? (av>bv?1:-1) : (av<bv?1:-1);
+    return sortDir==='asc'?(av>bv?1:-1):(av<bv?1:-1);
   });
 }
 
@@ -681,26 +759,29 @@ function sortEntries(){
    테이블 렌더링
 ──────────────────────────────── */
 function renderTable(){
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  currentPage      = Math.min(currentPage, totalPages);
+  const totalPages = Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+  currentPage      = Math.min(currentPage,totalPages);
   const start      = (currentPage-1)*PAGE_SIZE;
-  const slice      = filtered.slice(start, start+PAGE_SIZE);
+  const slice      = filtered.slice(start,start+PAGE_SIZE);
 
   const tbody = document.getElementById('tableBody');
   if(!slice.length){
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">😢 조건에 맞는 참여자가 없습니다</div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9"><div class="empty-state">😢 조건에 맞는 참여자가 없습니다</div></td></tr>`;
   } else {
     tbody.innerHTML = slice.map((e,i)=>{
-      const num     = start + i + 1;
-      const dateStr = e.createdAt.getFullYear() > 2000
+      const num     = start+i+1;
+      const dateStr = e.createdAt.getFullYear()>2000
         ? e.createdAt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
         : '-';
       const imgCell = e.imgUrl
-        ? `<img class="thumb" src="${e.imgUrl}" alt="인증사진" onclick="openImg('${e.imgUrl}','${e.name} · ${e.uni}')">`
+        ? `<img class="thumb" src="${e.imgUrl}" alt="인증사진" onclick="openImg('${e.imgUrl}','${esc(e.name)} · ${esc(e.uni)}')">`
         : `<div class="no-img" title="사진 없음">—</div>`;
+      const rCls  = e.region==='서울'?'region-seoul':e.region==='경기'?'region-gyeong':'';
+      const rIcon = e.region==='서울'?'🏙️':e.region==='경기'?'🌿':'';
       return `<tr>
         <td><span class="row-num">${num}</span></td>
         <td class="name">${esc(e.name)}</td>
+        <td><span class="region-badge ${rCls}">${rIcon} ${esc(e.region)}</span></td>
         <td class="uni">${esc(e.uni)}</td>
         <td class="mono">${esc(e.phone)}</td>
         <td style="font-size:12px;color:var(--txt2)">${esc(e.studentId)||'—'}</td>
@@ -711,17 +792,15 @@ function renderTable(){
     }).join('');
   }
 
-  // 페이저
   document.getElementById('pagerInfo').textContent =
     `${filtered.length.toLocaleString()}명 중 ${start+1}–${Math.min(start+PAGE_SIZE,filtered.length)}번`;
   const pb = document.getElementById('pagerBtns');
   let btns = `<button class="pager-btn" onclick="goPage(${currentPage-1})" ${currentPage<=1?'disabled':''}>‹</button>`;
-  const range = pageRange(currentPage, totalPages);
-  range.forEach(p=>{
-    if(p==='…') btns += `<button class="pager-btn" disabled>…</button>`;
-    else btns += `<button class="pager-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
+  pageRange(currentPage,totalPages).forEach(p=>{
+    if(p==='…') btns+=`<button class="pager-btn" disabled>…</button>`;
+    else btns+=`<button class="pager-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
   });
-  btns += `<button class="pager-btn" onclick="goPage(${currentPage+1})" ${currentPage>=totalPages?'disabled':''}>›</button>`;
+  btns+=`<button class="pager-btn" onclick="goPage(${currentPage+1})" ${currentPage>=totalPages?'disabled':''}>›</button>`;
   pb.innerHTML = btns;
 }
 function goPage(p){ currentPage=p; renderTable(); window.scrollTo(0,0); }
@@ -734,88 +813,95 @@ function pageRange(cur,tot){
 function esc(s){ return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* ────────────────────────────────
-   랭킹 패널
+   랭킹 패널 (지역 필터 연동)
 ──────────────────────────────── */
+let rankRegionCur = 'all';
+
+function setRankRegion(r, btn){
+  rankRegionCur = r;
+  document.querySelectorAll('.rank-rtab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRanking();
+}
+
 function renderRanking(){
+  const src = rankRegionCur==='all'
+    ? allEntries
+    : allEntries.filter(e=>e.region===rankRegionCur);
+
   // 학교 순위
   const counts = {};
-  allEntries.forEach(e=>{ counts[e.uni]=(counts[e.uni]||0)+1; });
+  src.forEach(e=>{ counts[e.uni]=(counts[e.uni]||0)+1; });
   const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  const total  = allEntries.length||1;
+  const total  = src.length||1;
   const max    = sorted[0]?sorted[0][1]:1;
   const medals = ['g1','g2','g3'];
 
   document.getElementById('rankList').innerHTML = sorted.length
-    ? sorted.map(([uni,cnt],i)=>`
-      <div class="rank-item">
-        <div class="rank-num-badge ${medals[i]||''}">${i<3?['🥇','🥈','🥉'][i]:i+1}</div>
-        <div style="flex:1;min-width:0">
-          <div class="rank-name">${uni}</div>
-          <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${Math.round(cnt/max*100)}%"></div></div>
-        </div>
-        <div class="rank-cnt">${cnt}명</div>
-      </div>`).join('')
+    ? sorted.map(([uni,cnt],i)=>{
+        const region = UNI_REGION[uni]||'';
+        const rIcon  = region==='서울'?'🏙️':region==='경기'?'🌿':'';
+        return `<div class="rank-item">
+          <div class="rank-num-badge ${medals[i]||''}">${i<3?['🥇','🥈','🥉'][i]:i+1}</div>
+          <div style="flex:1;min-width:0">
+            <div class="rank-name">${rIcon} ${uni}</div>
+            <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${Math.round(cnt/max*100)}%"></div></div>
+          </div>
+          <div class="rank-cnt">${cnt}명</div>
+        </div>`;
+      }).join('')
     : '<div style="padding:30px;text-align:center;color:var(--txt3);font-size:13px">데이터 없음</div>';
 
   // 시간대별 현황
   const hourMap = {};
-  allEntries.forEach(e=>{
-    const h = e.createdAt.getFullYear()>2000 ? e.createdAt.getHours() : null;
-    if(h!==null) hourMap[h] = (hourMap[h]||0)+1;
+  src.forEach(e=>{
+    const h = e.createdAt.getFullYear()>2000?e.createdAt.getHours():null;
+    if(h!==null) hourMap[h]=(hourMap[h]||0)+1;
   });
   const maxH = Math.max(1,...Object.values(hourMap));
-  let hourHtml = '';
+  let hourHtml='';
   for(let h=0;h<24;h++){
-    const cnt = hourMap[h]||0;
+    const cnt=hourMap[h]||0;
     if(!cnt) continue;
-    const w = Math.round(cnt/maxH*100);
-    hourHtml += `<div class="hour-row">
+    hourHtml+=`<div class="hour-row">
       <div class="hour-label">${String(h).padStart(2,'0')}시</div>
       <div class="hour-bar-wrap">
-        <div class="hour-bar" style="width:${w}%">
+        <div class="hour-bar" style="width:${Math.round(cnt/maxH*100)}%">
           <span class="hour-cnt">${cnt}</span>
         </div>
       </div>
     </div>`;
   }
-  document.getElementById('hourChart').innerHTML = hourHtml ||
+  document.getElementById('hourChart').innerHTML = hourHtml||
     '<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">데이터 없음</div>';
 }
 
 /* ────────────────────────────────
-   CSV 다운로드
+   CSV 다운로드 (지역 컬럼 포함)
 ──────────────────────────────── */
 function downloadCSV(){
   if(!filtered.length){ alert('다운로드할 데이터가 없습니다.'); return; }
-  const BOM = '\uFEFF';
-  const header = ['번호','이름','학교','연락처','학번/학과','이메일','인증사진URL','참여일시'];
-  const rows = filtered.map((e,i)=>[
-    i+1,
-    e.name,
-    e.uni,
-    e.phone,
-    e.studentId||'',
-    e.email||'',
-    e.imgUrl||'',
-    e.createdAt.getFullYear()>2000 ? e.createdAt.toLocaleString('ko-KR') : ''
+  const BOM    = '\uFEFF';
+  const header = ['번호','이름','지역','학교','연락처','학번/학과','이메일','인증사진URL','참여일시'];
+  const rows   = filtered.map((e,i)=>[
+    i+1, e.name, e.region, e.uni, e.phone,
+    e.studentId||'', e.email||'', e.imgUrl||'',
+    e.createdAt.getFullYear()>2000?e.createdAt.toLocaleString('ko-KR'):''
   ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
-
-  const csv   = BOM + [header.join(','), ...rows].join('\n');
-  const blob  = new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const url   = URL.createObjectURL(blob);
-  const a     = document.createElement('a');
-  a.href      = url;
-  a.download  = `간식대항전_참여자_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const csv  = BOM+[header.join(','),...rows].join('\n');
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download=`간식대항전_참여자_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
 }
 
 /* ────────────────────────────────
    이미지 모달
 ──────────────────────────────── */
-function openImg(url, info){
-  document.getElementById('modalImg').src  = url;
-  document.getElementById('modalInfo').textContent = info;
+function openImg(url,info){
+  document.getElementById('modalImg').src=url;
+  document.getElementById('modalInfo').textContent=info;
   document.getElementById('imgModal').classList.add('show');
 }
 function closeModal(e){
@@ -826,7 +912,7 @@ function closeModal(e){
 /* ────────────────────────────────
    탭 전환
 ──────────────────────────────── */
-function switchPanel(name, btn){
+function switchPanel(name,btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');

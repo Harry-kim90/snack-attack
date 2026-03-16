@@ -263,6 +263,33 @@ body{
   color:var(--choco-dark);font-weight:700;
 }
 
+/* ══════════════════════════════════
+   지역 탭
+══════════════════════════════════ */
+.region-tabs{
+  display:flex;gap:6px;margin-bottom:10px;
+}
+.rtab{
+  flex:1;padding:10px 0;
+  background:var(--cream);
+  border:2px solid rgba(139,74,32,.2);
+  border-radius:10px;
+  color:var(--text-mid);
+  font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;
+  cursor:pointer;transition:all .15s;
+}
+.rtab:hover{border-color:var(--sun-orange);color:var(--choco)}
+.rtab.active{
+  background:linear-gradient(135deg,var(--choco),var(--choco-mid));
+  border-color:var(--choco);
+  color:var(--cream);
+  box-shadow:0 2px 10px rgba(107,58,31,.3);
+}
+.uni-count{
+  font-size:11px;color:var(--text-light);
+  margin-bottom:6px;padding-left:2px;
+}
+
 .sel-badge{
   display:none;align-items:center;gap:8px;
   padding:10px 16px;
@@ -564,12 +591,21 @@ body{
       <div id="formArea">
 
         <!-- STEP 1: 학교 선택 -->
-        <div class="sh"><div class="sh-num">1</div><div class="sh-label">학교 선택</div><div class="sh-line"></div></div>
+        <div class="sh"><div class="sh-num">1</div><div class="sh-label">학교 선택 (필수)</div><div class="sh-line"></div></div>
+
+        <!-- 지역 탭 -->
+        <div class="region-tabs">
+          <button class="rtab active" id="rtab-서울" onclick="setRegion('서울',this)">🏙️ 서울</button>
+          <button class="rtab" id="rtab-경기" onclick="setRegion('경기',this)">🌿 경기</button>
+        </div>
+
+        <!-- 검색 -->
         <div class="search-wrap">
           <input class="search-input" id="searchInput" type="text"
-            placeholder="학교명으로 검색하세요 (예: 연세, 고려, 서울대)" oninput="filterUni()">
+            placeholder="학교명으로 검색하세요 (예: 연세, 한양, 아주)" oninput="filterUni()">
           <span class="search-ico">🔍</span>
         </div>
+        <div class="uni-count" id="uniCount"></div>
         <div class="uni-grid" id="uniGrid"></div>
         <div class="sel-badge" id="selBadge">✅ &nbsp;<strong id="selName"></strong>&nbsp; 선택됨</div>
 
@@ -677,12 +713,12 @@ body{
    Firebase Console에서 복사한 값으로 교체하세요!
 ────────────────────────────────── */
 const firebaseConfig = {
-  apiKey: "AIzaSyDsphxZGww6gBL9jjGkG8Lt85fItrdy8u8",
-  authDomain: "snack-event-2026.firebaseapp.com",
-  projectId: "snack-event-2026",
-  storageBucket: "snack-event-2026.firebasestorage.app",
-  messagingSenderId: "472126161115",
-  appId: "1:472126161115:web:42d60e628d928a9186ccfe"
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
 /* Firebase 설정값 유효성 체크 */
 const IS_FB_OK = firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -713,35 +749,67 @@ if(IS_FB_OK){
 })();
 
 /* ──────────────────────────────────
-   대학교 목록
+   대학교 데이터 (지역별)
 ────────────────────────────────── */
-const UNIS=[
-  '가톨릭대학교','건국대학교','경기대학교','경희대학교','고려대학교',
-  '광운대학교','국민대학교','덕성여자대학교','동국대학교','동덕여자대학교',
-  '명지대학교','삼육대학교','상명대학교','서강대학교','서경대학교',
-  '서울과학기술대학교','서울교육대학교','서울대학교','서울시립대학교',
-  '서울여자대학교','성공회대학교','성균관대학교','성신여자대학교','세종대학교',
-  '숙명여자대학교','숭실대학교','연세대학교','이화여자대학교','인덕대학교',
-  '중앙대학교','추계예술대학교','한국외국어대학교','한성대학교','한양대학교',
-  '홍익대학교','한국항공대학교','육군사관학교','KC대학교','총신대학교','명지전문대학'
-];
-let selUni='',filtered=[...UNIS],selFile=null;
+const UNI_DATA = {
+  '서울': [
+    '가톨릭대학교','건국대학교','경희대학교','고려대학교','광운대학교',
+    '국민대학교','동국대학교','명지대학교','상명대학교','서강대학교',
+    '서울과학기술대학교','서울교육대학교','서울대학교','서울시립대학교',
+    '서울여자대학교','성균관대학교','성신여자대학교','세종대학교',
+    '숙명여자대학교','숭실대학교','연세대학교','이화여자대학교',
+    '중앙대학교','총신대학교','추계예술대학교','한국외국어대학교',
+    '한국예술종합학교','한성대학교','한양대학교','홍익대학교'
+  ],
+  '경기': [
+    '가천대학교','가톨릭대학교','강남대학교','경기대학교',
+    '경희대학교 국제캠퍼스','국립한경대학교','단국대학교 죽전캠퍼스',
+    '대진대학교','루터대학교','명지대학교 자연캠퍼스','서울신학대학교',
+    '서울장신대학교','성결대학교','수원대학교','수원가톨릭대학교',
+    '아주대학교','안양대학교','예원예술대학교 양주캠퍼스','용인대학교',
+    '을지대학교','중앙대학교 안성캠퍼스','중앙승가대학교','차의과학대학교',
+    '칼빈대학교','평택대학교','한경대학교','한국공학대학교',
+    '한국항공대학교','한북대학교','한세대학교','한신대학교',
+    '한양대학교 ERICA캠퍼스','협성대학교'
+  ]
+};
 
-function renderGrid(list){
-  document.getElementById('uniGrid').innerHTML=list.map(u=>
-    `<button class="uni-btn${selUni===u?' sel':''}" onclick="pickUni('${u}')">${u}</button>`
-  ).join('');
+let selRegion = '서울';
+let selUni = '', selFile = null;
+
+function setRegion(region, btn){
+  selRegion = region;
+  document.querySelectorAll('.rtab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('searchInput').value = '';
+  renderGrid();
 }
-function filterUni(){
-  const q=document.getElementById('searchInput').value.trim();
-  filtered=q?UNIS.filter(u=>u.includes(q)):[...UNIS];
-  renderGrid(filtered);
+
+function getFiltered(){
+  const q = document.getElementById('searchInput').value.trim();
+  const base = UNI_DATA[selRegion] || [];
+  return q ? base.filter(u => u.includes(q)) : base;
 }
+
+function renderGrid(){
+  const list = getFiltered();
+  document.getElementById('uniCount').textContent = `${selRegion} · 총 ${list.length}개 대학`;
+  document.getElementById('uniGrid').innerHTML = list.length
+    ? list.map(u =>
+        `<button class="uni-btn${selUni===u?' sel':''}" onclick="pickUni('${u.replace(/'/g,"\\'")}')">
+          ${u}
+        </button>`
+      ).join('')
+    : `<div style="padding:20px;text-align:center;color:var(--text-light);font-size:13px">검색 결과가 없습니다</div>`;
+}
+
+function filterUni(){ renderGrid(); }
+
 function pickUni(n){
-  selUni=n;
-  document.getElementById('selName').textContent=n;
+  selUni = n;
+  document.getElementById('selName').textContent = n;
   document.getElementById('selBadge').classList.add('on');
-  renderGrid(filtered);
+  renderGrid();
 }
 function fmtPhone(el){
   let v=el.value.replace(/\D/g,'');
@@ -855,7 +923,7 @@ function resetAll(){
   document.getElementById('submitBtn').textContent='🍫 참여하기!';
   document.getElementById('formArea').style.display='';
   document.getElementById('successArea').classList.remove('on');
-  renderGrid(UNIS);
+  renderGrid();
 }
 
 async function loadDash(){
