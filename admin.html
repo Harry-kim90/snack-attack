@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 페이지 · 간식대항전 2025</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<style>
+/* ══════════════════════════════
+   ROOT & RESET
+══════════════════════════════ */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:       #0A0C10;
+  --bg2:      #0F1117;
+  --bg3:      #161B24;
+  --bg4:      #1C2333;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --accent:   #F5C842;
+  --accent2:  #FF8C00;
+  --green:    #34D399;
+  --red:      #F87171;
+  --blue:     #60A5FA;
+  --txt:      rgba(255,255,255,0.90);
+  --txt2:     rgba(255,255,255,0.50);
+  --txt3:     rgba(255,255,255,0.25);
+}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);overflow-x:hidden}
+
+/* ══════════════════════════════
+   LOGIN SCREEN
+══════════════════════════════ */
+#loginScreen{
+  position:fixed;inset:0;z-index:9999;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;
+}
+.login-card{
+  width:100%;max-width:380px;
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:20px;
+  padding:40px 32px;
+  box-shadow:0 24px 80px rgba(0,0,0,0.6);
+  animation:fadeUp .4s ease both;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.login-icon{
+  width:56px;height:56px;border-radius:14px;
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;margin-bottom:20px;
+  box-shadow:0 6px 24px rgba(245,200,66,.3);
+}
+.login-title{font-size:20px;font-weight:700;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--txt2);margin-bottom:28px}
+.login-label{display:block;font-size:11px;font-weight:700;color:var(--txt3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px}
+.login-input{
+  width:100%;padding:12px 16px;
+  background:var(--bg2);border:1.5px solid var(--border2);border-radius:10px;
+  color:var(--txt);font-family:'Noto Sans KR',sans-serif;font-size:15px;
+  outline:none;transition:all .2s;margin-bottom:16px;
+  letter-spacing:3px;
+}
+.login-input:focus{border-color:rgba(245,200,66,.6);background:rgba(245,200,66,.04)}
+.login-btn{
+  width:100%;padding:13px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  color:#1a0e00;font-family:'Noto Sans KR',sans-serif;font-size:15px;font-weight:700;
+  cursor:pointer;transition:all .2s;
+  box-shadow:0 4px 18px rgba(245,200,66,.25);
+}
+.login-btn:hover{transform:translateY(-1px);box-shadow:0 8px 26px rgba(245,200,66,.35)}
+.login-btn:active{transform:translateY(0)}
+.login-err{
+  margin-top:12px;padding:9px 14px;
+  background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);
+  border-radius:8px;font-size:12px;color:var(--red);
+  display:none;text-align:center;
+}
+.login-err.show{display:block}
+
+/* ══════════════════════════════
+   MAIN LAYOUT
+══════════════════════════════ */
+#adminScreen{display:none}
+#adminScreen.show{display:block}
+
+/* 사이드바 */
+.sidebar{
+  position:fixed;top:0;left:0;bottom:0;width:220px;
+  background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;z-index:100;
+  padding:24px 0;
+}
+.sidebar-logo{
+  padding:0 20px 20px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:16px;
+}
+.sidebar-logo-icon{
+  width:36px;height:36px;border-radius:9px;
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  margin-bottom:10px;
+}
+.sidebar-logo-title{font-size:14px;font-weight:700;color:var(--txt)}
+.sidebar-logo-sub{font-size:11px;color:var(--txt3);margin-top:2px}
+
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 20px;margin:1px 8px;border-radius:8px;
+  font-size:13px;font-weight:500;color:var(--txt2);
+  cursor:pointer;transition:all .15s;border:none;background:transparent;
+  width:calc(100% - 16px);text-align:left;
+}
+.nav-item:hover{background:var(--bg3);color:var(--txt)}
+.nav-item.active{background:rgba(245,200,66,.12);color:var(--accent)}
+.nav-item .nav-ico{font-size:15px;width:20px;text-align:center}
+
+.sidebar-bottom{margin-top:auto;padding:16px 8px 0;border-top:1px solid var(--border)}
+.logout-btn{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;border-radius:8px;width:100%;
+  background:transparent;border:none;color:var(--txt3);font-family:'Noto Sans KR',sans-serif;
+  font-size:12px;cursor:pointer;transition:all .15s;
+}
+.logout-btn:hover{background:rgba(248,113,113,.1);color:var(--red)}
+
+/* 메인 영역 */
+.main{margin-left:220px;min-height:100vh;padding:28px 28px 80px}
+@media(max-width:768px){
+  .sidebar{width:100%;bottom:auto;height:60px;flex-direction:row;padding:0 16px;align-items:center;border-right:none;border-bottom:1px solid var(--border)}
+  .sidebar-logo{display:none}
+  .nav-item{padding:8px 12px;margin:0}
+  .sidebar-bottom{display:none}
+  .main{margin-left:0;margin-top:60px;padding:16px}
+}
+
+/* ══════════════════════════════
+   TOP BAR
+══════════════════════════════ */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:24px;flex-wrap:wrap;gap:12px;
+}
+.page-title{font-size:20px;font-weight:700}
+.page-sub{font-size:12px;color:var(--txt3);margin-top:2px}
+.last-refresh{font-size:11px;color:var(--txt3);display:flex;align-items:center;gap:5px}
+.dot-live{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ══════════════════════════════
+   STAT CARDS
+══════════════════════════════ */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.stats-grid{grid-template-columns:1fr 1fr}}
+.stat-card{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:14px;padding:18px 16px;position:relative;overflow:hidden;
+}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.c1::before{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+.stat-card.c2::before{background:linear-gradient(90deg,var(--green),#059669)}
+.stat-card.c3::before{background:linear-gradient(90deg,var(--blue),#3B82F6)}
+.stat-card.c4::before{background:linear-gradient(90deg,#A78BFA,#7C3AED)}
+.stat-lbl{font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px}
+.stat-val{font-size:26px;font-weight:900;line-height:1}
+.stat-sub{font-size:11px;color:var(--txt3);margin-top:5px}
+
+/* ══════════════════════════════
+   TOOLBAR
+══════════════════════════════ */
+.toolbar{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:14px;flex-wrap:wrap;
+}
+.search-box{
+  flex:1;min-width:180px;
+  position:relative;
+}
+.search-box input{
+  width:100%;padding:9px 14px 9px 36px;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:9px;
+  color:var(--txt);font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;transition:border .2s;
+}
+.search-box input:focus{border-color:rgba(245,200,66,.4)}
+.search-box input::placeholder{color:var(--txt3)}
+.search-box::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+
+.filter-sel{
+  padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;
+  color:var(--txt2);font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;cursor:pointer;
+}
+.filter-sel option{background:var(--bg3)}
+
+.action-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 16px;border-radius:9px;border:none;cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;
+  transition:all .15s;white-space:nowrap;
+}
+.btn-csv{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25)}
+.btn-csv:hover{background:rgba(52,211,153,.2)}
+.btn-refresh{background:var(--bg3);color:var(--txt2);border:1px solid var(--border2)}
+.btn-refresh:hover{color:var(--accent);border-color:rgba(245,200,66,.3)}
+
+/* ══════════════════════════════
+   TABLE
+══════════════════════════════ */
+.table-wrap{
+  background:var(--bg3);border:1px solid var(--border);border-radius:16px;overflow:hidden;
+}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:780px}
+thead tr{background:var(--bg4);border-bottom:1px solid var(--border2)}
+th{
+  padding:11px 14px;text-align:left;
+  font-size:10px;font-weight:700;color:var(--txt3);
+  letter-spacing:1.2px;text-transform:uppercase;white-space:nowrap;
+}
+th.sort{cursor:pointer;user-select:none;transition:color .15s}
+th.sort:hover{color:var(--txt)}
+th.sort.asc::after{content:' ↑';color:var(--accent)}
+th.sort.desc::after{content:' ↓';color:var(--accent)}
+
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+td{padding:12px 14px;font-size:13px;color:var(--txt2);vertical-align:middle}
+td.name{font-weight:700;color:var(--txt)}
+td.uni{color:var(--accent);font-size:12px;font-weight:700}
+td.mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+td.time{font-size:11px;color:var(--txt3)}
+
+/* 번호 */
+.row-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:6px;
+  background:var(--bg4);font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--txt3);
+}
+
+/* 사진 썸네일 */
+.thumb{
+  width:38px;height:38px;border-radius:7px;object-fit:cover;
+  border:1px solid var(--border2);cursor:pointer;transition:all .15s;
+}
+.thumb:hover{transform:scale(1.08);border-color:var(--accent)}
+.no-img{
+  width:38px;height:38px;border-radius:7px;
+  background:var(--bg4);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--txt3);
+}
+
+/* 빈 상태 */
+.empty-state{padding:60px 20px;text-align:center;color:var(--txt3);font-size:13px;line-height:2.4}
+
+/* ══════════════════════════════
+   PAGINATION
+══════════════════════════════ */
+.pager{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-top:1px solid var(--border);
+  flex-wrap:wrap;gap:8px;
+}
+.pager-info{font-size:12px;color:var(--txt3)}
+.pager-btns{display:flex;gap:4px}
+.pager-btn{
+  padding:5px 10px;background:var(--bg4);border:1px solid var(--border);
+  border-radius:6px;color:var(--txt2);font-family:'JetBrains Mono',monospace;
+  font-size:12px;cursor:pointer;transition:all .15s;
+}
+.pager-btn:hover{border-color:rgba(245,200,66,.3);color:var(--accent)}
+.pager-btn.active{background:rgba(245,200,66,.15);border-color:var(--accent);color:var(--accent)}
+.pager-btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* ══════════════════════════════
+   RANKING TAB
+══════════════════════════════ */
+.rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.rank-grid{grid-template-columns:1fr}}
+.rank-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.rank-card-header{padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--txt2)}
+.rank-item{
+  display:flex;align-items:center;gap:12px;padding:11px 16px;
+  border-bottom:1px solid var(--border);transition:background .1s;
+}
+.rank-item:last-child{border-bottom:none}
+.rank-item:hover{background:rgba(255,255,255,.03)}
+.rank-num-badge{
+  width:28px;height:28px;border-radius:7px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;
+  background:var(--bg4);color:var(--txt3);
+}
+.rank-num-badge.g1{background:linear-gradient(135deg,#F59E0B,#FBBF24);color:#1a0e00}
+.rank-num-badge.g2{background:linear-gradient(135deg,#9CA3AF,#D1D5DB);color:#111}
+.rank-num-badge.g3{background:linear-gradient(135deg,#92400E,#D97706);color:#fff}
+.rank-name{flex:1;font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-cnt{font-size:12px;color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace}
+.rank-bar-bg{height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:4px;overflow:hidden}
+.rank-bar-fill{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .8s ease}
+
+/* 최근 시간대 차트 (바형) */
+.hour-chart{padding:16px}
+.hour-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
+.hour-label{width:30px;text-align:right;color:var(--txt3);font-family:'JetBrains Mono',monospace}
+.hour-bar-wrap{flex:1;height:16px;background:var(--bg4);border-radius:4px;overflow:hidden}
+.hour-bar{height:16px;background:linear-gradient(90deg,rgba(245,200,66,.3),rgba(245,200,66,.7));border-radius:4px;transition:width .8s ease;display:flex;align-items:center;padding-left:6px}
+.hour-cnt{font-size:10px;color:rgba(245,200,66,.9);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+
+/* ══════════════════════════════
+   IMAGE MODAL
+══════════════════════════════ */
+#imgModal{
+  position:fixed;inset:0;z-index:9998;
+  background:rgba(0,0,0,.85);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+#imgModal.show{display:flex}
+.modal-inner{
+  position:relative;max-width:90vw;max-height:90vh;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:16px;
+  overflow:hidden;animation:popIn .2s ease;
+}
+@keyframes popIn{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+#modalImg{max-width:100%;max-height:80vh;display:block;object-fit:contain}
+.modal-info{padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--txt2)}
+.modal-close{
+  position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;
+  background:rgba(0,0,0,.6);border:none;color:#fff;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .15s;
+}
+.modal-close:hover{background:rgba(248,113,113,.5)}
+
+/* ══════════════════════════════
+   LOADING
+══════════════════════════════ */
+.loading-overlay{
+  position:fixed;inset:0;background:var(--bg);z-index:9998;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+}
+.loading-overlay.hidden{display:none}
+.spin{width:32px;height:32px;border:3px solid rgba(245,200,66,.15);border-top-color:var(--accent);border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.loading-txt{font-size:13px;color:var(--txt3)}
+
+/* 탭 패널 */
+.panel{display:none}
+.panel.active{display:block}
+
+/* 뱃지 */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge-img{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.25)}
+.badge-no{background:rgba(255,255,255,.05);color:var(--txt3);border:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- ══ LOADING ══ -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spin"></div>
+  <div class="loading-txt">데이터를 불러오는 중...</div>
+</div>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-icon">🔐</div>
+    <div class="login-title">관리자 로그인</div>
+    <div class="login-sub">간식대항전 2025 · 운영자 전용</div>
+    <label class="login-label">비밀번호</label>
+    <input class="login-input" id="pwInput" type="password" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">로그인</button>
+    <div class="login-err" id="loginErr">비밀번호가 올바르지 않습니다</div>
+  </div>
+</div>
+
+<!-- ══ ADMIN SCREEN ══ -->
+<div id="adminScreen">
+
+  <!-- 사이드바 -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">🍫</div>
+      <div class="sidebar-logo-title">간식대항전</div>
+      <div class="sidebar-logo-sub">Admin Console · 2025</div>
+    </div>
+    <button class="nav-item active" onclick="switchPanel('entries',this)">
+      <span class="nav-ico">👥</span> 참여자 목록
+    </button>
+    <button class="nav-item" onclick="switchPanel('ranking',this)">
+      <span class="nav-ico">🏆</span> 학교 랭킹
+    </button>
+    <div class="sidebar-bottom">
+      <button class="logout-btn" onclick="doLogout()">
+        <span>🚪</span> 로그아웃
+      </button>
+    </div>
+  </div>
+
+  <!-- 메인 -->
+  <div class="main">
+
+    <!-- ── 참여자 패널 ── -->
+    <div class="panel active" id="panel-entries">
+      <div class="topbar">
+        <div>
+          <div class="page-title">참여자 목록</div>
+          <div class="page-sub" id="entryCount">불러오는 중...</div>
+        </div>
+        <div class="last-refresh">
+          <div class="dot-live"></div>
+          <span id="refreshTime">-</span>
+        </div>
+      </div>
+
+      <!-- 통계 -->
+      <div class="stats-grid">
+        <div class="stat-card c1">
+          <div class="stat-lbl">총 참여자</div>
+          <div class="stat-val" id="sTotalEntries" style="color:var(--accent)">-</div>
+          <div class="stat-sub">누적 신청 건수</div>
+        </div>
+        <div class="stat-card c2">
+          <div class="stat-lbl">참여 학교 수</div>
+          <div class="stat-val" id="sTotalSchools" style="color:var(--green)">-</div>
+          <div class="stat-sub">개 학교</div>
+        </div>
+        <div class="stat-card c3">
+          <div class="stat-lbl">사진 첨부율</div>
+          <div class="stat-val" id="sImgRate" style="color:var(--blue)">-</div>
+          <div class="stat-sub">인증사진 업로드</div>
+        </div>
+        <div class="stat-card c4">
+          <div class="stat-lbl">오늘 참여</div>
+          <div class="stat-val" id="sTodayEntries" style="color:#A78BFA">-</div>
+          <div class="stat-sub">오늘 신청 건수</div>
+        </div>
+      </div>
+
+      <!-- 툴바 -->
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="이름, 학교, 연락처 검색..." oninput="applyFilter()">
+        </div>
+        <select class="filter-sel" id="uniFilter" onchange="applyFilter()">
+          <option value="">전체 학교</option>
+        </select>
+        <button class="action-btn btn-refresh" onclick="loadData()">🔄 새로고침</button>
+        <button class="action-btn btn-csv" onclick="downloadCSV()">⬇ CSV 다운로드</button>
+      </div>
+
+      <!-- 테이블 -->
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:42px">#</th>
+                <th class="sort" onclick="sortBy('name')">이름</th>
+                <th class="sort" onclick="sortBy('uni')">학교</th>
+                <th>연락처</th>
+                <th>학번/학과</th>
+                <th>이메일</th>
+                <th>인증사진</th>
+                <th class="sort" onclick="sortBy('createdAt')">참여일시</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <div class="pager-info" id="pagerInfo">-</div>
+          <div class="pager-btns" id="pagerBtns"></div>
+        </div>
+      </div>
+    </div><!-- /panel-entries -->
+
+    <!-- ── 랭킹 패널 ── -->
+    <div class="panel" id="panel-ranking">
+      <div class="topbar">
+        <div>
+          <div class="page-title">학교 랭킹</div>
+          <div class="page-sub">참여자 수 기준 실시간 순위</div>
+        </div>
+        <button class="action-btn btn-refresh" onclick="renderRanking()">🔄 새로고침</button>
+      </div>
+
+      <div class="rank-grid">
+        <div class="rank-card">
+          <div class="rank-card-header">🏆 학교별 순위</div>
+          <div id="rankList"></div>
+        </div>
+        <div class="rank-card">
+          <div class="rank-card-header">⏰ 시간대별 참여 현황</div>
+          <div class="hour-chart" id="hourChart"></div>
+        </div>
+      </div>
+    </div><!-- /panel-ranking -->
+
+  </div><!-- /main -->
+</div><!-- /adminScreen -->
+
+<!-- ══ IMAGE MODAL ══ -->
+<div id="imgModal" onclick="closeModal(event)">
+  <div class="modal-inner">
+    <button class="modal-close" onclick="document.getElementById('imgModal').classList.remove('show')">✕</button>
+    <img id="modalImg" src="" alt="인증사진">
+    <div class="modal-info" id="modalInfo"></div>
+  </div>
+</div>
+
+<!-- ══ JAVASCRIPT ══ -->
+<script>
+/* ────────────────────────────────
+   🔥 FIREBASE 설정
+   index.html과 동일한 값으로 교체하세요!
+──────────────────────────────── */
+const firebaseConfig = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+
+/* ────────────────────────────────
+   🔑 관리자 비밀번호 설정
+   원하는 비밀번호로 변경하세요!
+──────────────────────────────── */
+const ADMIN_PASSWORD = "snack2025!";
+
+/* ────────────────────────────────
+   초기화
+──────────────────────────────── */
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let allEntries  = [];   // 전체 데이터
+let filtered    = [];   // 필터링된 데이터
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let sortKey     = 'createdAt';
+let sortDir     = 'desc';
+
+/* ────────────────────────────────
+   로그인
+──────────────────────────────── */
+document.getElementById('loadingOverlay').classList.add('hidden');
+
+function doLogin(){
+  const pw = document.getElementById('pwInput').value;
+  if(pw === ADMIN_PASSWORD){
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('adminScreen').classList.add('show');
+    loadData();
+  } else {
+    document.getElementById('loginErr').classList.add('show');
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+  }
+}
+function doLogout(){
+  if(confirm('로그아웃 하시겠습니까?')){
+    document.getElementById('adminScreen').classList.remove('show');
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('pwInput').value = '';
+  }
+}
+
+/* ────────────────────────────────
+   데이터 로드
+──────────────────────────────── */
+async function loadData(){
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  try{
+    const snap = await db.collection('entries').orderBy('createdAt','desc').get();
+    allEntries = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      allEntries.push({
+        id:        doc.id,
+        name:      d.name      || '-',
+        uni:       d.uni       || '-',
+        phone:     d.phone     || '-',
+        studentId: d.studentId || '',
+        email:     d.email     || '',
+        imgUrl:    d.imgUrl    || '',
+        createdAt: d.createdAt ? d.createdAt.toDate() : new Date(0)
+      });
+    });
+
+    updateStats();
+    buildUniFilter();
+    applyFilter();
+    renderRanking();
+    document.getElementById('refreshTime').textContent = new Date().toLocaleTimeString('ko-KR');
+  } catch(e){
+    alert('데이터 로드 실패: ' + e.message);
+  }
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+/* ────────────────────────────────
+   통계 업데이트
+──────────────────────────────── */
+function updateStats(){
+  const total   = allEntries.length;
+  const schools = new Set(allEntries.map(e=>e.uni)).size;
+  const withImg = allEntries.filter(e=>e.imgUrl).length;
+  const rate    = total ? Math.round(withImg/total*100) : 0;
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const todayCnt= allEntries.filter(e=>e.createdAt >= today).length;
+
+  document.getElementById('sTotalEntries').textContent = total.toLocaleString();
+  document.getElementById('sTotalSchools').textContent = schools;
+  document.getElementById('sImgRate').textContent      = rate + '%';
+  document.getElementById('sTodayEntries').textContent = todayCnt;
+  document.getElementById('entryCount').textContent    = `총 ${total.toLocaleString()}명 참여`;
+}
+
+/* ────────────────────────────────
+   학교 필터 드롭다운 구성
+──────────────────────────────── */
+function buildUniFilter(){
+  const unis  = [...new Set(allEntries.map(e=>e.uni))].sort();
+  const sel   = document.getElementById('uniFilter');
+  const saved = sel.value;
+  sel.innerHTML = '<option value="">전체 학교</option>' +
+    unis.map(u=>`<option value="${u}">${u}</option>`).join('');
+  sel.value = unis.includes(saved) ? saved : '';
+}
+
+/* ────────────────────────────────
+   필터 + 정렬
+──────────────────────────────── */
+function applyFilter(){
+  const q   = document.getElementById('searchInput').value.trim().toLowerCase();
+  const uni = document.getElementById('uniFilter').value;
+  filtered  = allEntries.filter(e=>{
+    const matchQ  = !q || [e.name,e.uni,e.phone,e.studentId,e.email].some(v=>v.toLowerCase().includes(q));
+    const matchU  = !uni || e.uni === uni;
+    return matchQ && matchU;
+  });
+  sortEntries();
+  currentPage = 1;
+  renderTable();
+}
+
+function sortBy(key){
+  if(sortKey === key) sortDir = sortDir==='asc'?'desc':'asc';
+  else { sortKey=key; sortDir='asc'; }
+  document.querySelectorAll('th.sort').forEach(th=>{th.classList.remove('asc','desc')});
+  const th = [...document.querySelectorAll('th.sort')].find(t=>t.getAttribute('onclick')===`sortBy('${key}')`);
+  if(th) th.classList.add(sortDir);
+  sortEntries();
+  renderTable();
+}
+function sortEntries(){
+  filtered.sort((a,b)=>{
+    let av=a[sortKey], bv=b[sortKey];
+    if(sortKey==='createdAt'){ av=av.getTime(); bv=bv.getTime(); }
+    else { av=String(av).toLowerCase(); bv=String(bv).toLowerCase(); }
+    return sortDir==='asc' ? (av>bv?1:-1) : (av<bv?1:-1);
+  });
+}
+
+/* ────────────────────────────────
+   테이블 렌더링
+──────────────────────────────── */
+function renderTable(){
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  currentPage      = Math.min(currentPage, totalPages);
+  const start      = (currentPage-1)*PAGE_SIZE;
+  const slice      = filtered.slice(start, start+PAGE_SIZE);
+
+  const tbody = document.getElementById('tableBody');
+  if(!slice.length){
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">😢 조건에 맞는 참여자가 없습니다</div></td></tr>`;
+  } else {
+    tbody.innerHTML = slice.map((e,i)=>{
+      const num     = start + i + 1;
+      const dateStr = e.createdAt.getFullYear() > 2000
+        ? e.createdAt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+        : '-';
+      const imgCell = e.imgUrl
+        ? `<img class="thumb" src="${e.imgUrl}" alt="인증사진" onclick="openImg('${e.imgUrl}','${e.name} · ${e.uni}')">`
+        : `<div class="no-img" title="사진 없음">—</div>`;
+      return `<tr>
+        <td><span class="row-num">${num}</span></td>
+        <td class="name">${esc(e.name)}</td>
+        <td class="uni">${esc(e.uni)}</td>
+        <td class="mono">${esc(e.phone)}</td>
+        <td style="font-size:12px;color:var(--txt2)">${esc(e.studentId)||'—'}</td>
+        <td style="font-size:12px;color:var(--txt2)">${esc(e.email)||'—'}</td>
+        <td>${imgCell}</td>
+        <td class="time">${dateStr}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // 페이저
+  document.getElementById('pagerInfo').textContent =
+    `${filtered.length.toLocaleString()}명 중 ${start+1}–${Math.min(start+PAGE_SIZE,filtered.length)}번`;
+  const pb = document.getElementById('pagerBtns');
+  let btns = `<button class="pager-btn" onclick="goPage(${currentPage-1})" ${currentPage<=1?'disabled':''}>‹</button>`;
+  const range = pageRange(currentPage, totalPages);
+  range.forEach(p=>{
+    if(p==='…') btns += `<button class="pager-btn" disabled>…</button>`;
+    else btns += `<button class="pager-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
+  });
+  btns += `<button class="pager-btn" onclick="goPage(${currentPage+1})" ${currentPage>=totalPages?'disabled':''}>›</button>`;
+  pb.innerHTML = btns;
+}
+function goPage(p){ currentPage=p; renderTable(); window.scrollTo(0,0); }
+function pageRange(cur,tot){
+  if(tot<=7) return Array.from({length:tot},(_,i)=>i+1);
+  if(cur<=4) return [1,2,3,4,5,'…',tot];
+  if(cur>=tot-3) return [1,'…',tot-4,tot-3,tot-2,tot-1,tot];
+  return [1,'…',cur-1,cur,cur+1,'…',tot];
+}
+function esc(s){ return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ────────────────────────────────
+   랭킹 패널
+──────────────────────────────── */
+function renderRanking(){
+  // 학교 순위
+  const counts = {};
+  allEntries.forEach(e=>{ counts[e.uni]=(counts[e.uni]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const total  = allEntries.length||1;
+  const max    = sorted[0]?sorted[0][1]:1;
+  const medals = ['g1','g2','g3'];
+
+  document.getElementById('rankList').innerHTML = sorted.length
+    ? sorted.map(([uni,cnt],i)=>`
+      <div class="rank-item">
+        <div class="rank-num-badge ${medals[i]||''}">${i<3?['🥇','🥈','🥉'][i]:i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div class="rank-name">${uni}</div>
+          <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${Math.round(cnt/max*100)}%"></div></div>
+        </div>
+        <div class="rank-cnt">${cnt}명</div>
+      </div>`).join('')
+    : '<div style="padding:30px;text-align:center;color:var(--txt3);font-size:13px">데이터 없음</div>';
+
+  // 시간대별 현황
+  const hourMap = {};
+  allEntries.forEach(e=>{
+    const h = e.createdAt.getFullYear()>2000 ? e.createdAt.getHours() : null;
+    if(h!==null) hourMap[h] = (hourMap[h]||0)+1;
+  });
+  const maxH = Math.max(1,...Object.values(hourMap));
+  let hourHtml = '';
+  for(let h=0;h<24;h++){
+    const cnt = hourMap[h]||0;
+    if(!cnt) continue;
+    const w = Math.round(cnt/maxH*100);
+    hourHtml += `<div class="hour-row">
+      <div class="hour-label">${String(h).padStart(2,'0')}시</div>
+      <div class="hour-bar-wrap">
+        <div class="hour-bar" style="width:${w}%">
+          <span class="hour-cnt">${cnt}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+  document.getElementById('hourChart').innerHTML = hourHtml ||
+    '<div style="padding:20px;text-align:center;color:var(--txt3);font-size:12px">데이터 없음</div>';
+}
+
+/* ────────────────────────────────
+   CSV 다운로드
+──────────────────────────────── */
+function downloadCSV(){
+  if(!filtered.length){ alert('다운로드할 데이터가 없습니다.'); return; }
+  const BOM = '\uFEFF';
+  const header = ['번호','이름','학교','연락처','학번/학과','이메일','인증사진URL','참여일시'];
+  const rows = filtered.map((e,i)=>[
+    i+1,
+    e.name,
+    e.uni,
+    e.phone,
+    e.studentId||'',
+    e.email||'',
+    e.imgUrl||'',
+    e.createdAt.getFullYear()>2000 ? e.createdAt.toLocaleString('ko-KR') : ''
+  ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
+
+  const csv   = BOM + [header.join(','), ...rows].join('\n');
+  const blob  = new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href      = url;
+  a.download  = `간식대항전_참여자_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ────────────────────────────────
+   이미지 모달
+──────────────────────────────── */
+function openImg(url, info){
+  document.getElementById('modalImg').src  = url;
+  document.getElementById('modalInfo').textContent = info;
+  document.getElementById('imgModal').classList.add('show');
+}
+function closeModal(e){
+  if(e.target===document.getElementById('imgModal'))
+    document.getElementById('imgModal').classList.remove('show');
+}
+
+/* ────────────────────────────────
+   탭 전환
+──────────────────────────────── */
+function switchPanel(name, btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='ranking') renderRanking();
+}
+</script>
+</body>
+</html>
