@@ -9,10 +9,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
 
-<!-- Firebase SDK -->
+<!-- Firebase SDK (Firestore만 사용 — 이미지는 Cloudinary) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
 <style>
 /* ══════════════════════════════════
@@ -709,7 +708,7 @@ body{
 <!-- ══════════ JAVASCRIPT ══════════ -->
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 /* ──────────────────────────────────
-   🔥 FIREBASE 설정
+   🔥 FIREBASE 설정 (Firestore — 참여자 데이터 저장)
    Firebase Console에서 복사한 값으로 교체하세요!
 ────────────────────────────────── */
 const firebaseConfig = {
@@ -720,13 +719,20 @@ const firebaseConfig = {
   messagingSenderId: "472126161115",
   appId: "1:472126161115:web:42d60e628d928a9186ccfe"
 };
+
+/* ──────────────────────────────────
+   ☁️ CLOUDINARY 설정 (이미지 업로드)
+   아래 두 값을 Cloudinary Dashboard에서 확인 후 교체하세요!
+────────────────────────────────── */
+const CLOUDINARY_CLOUD_NAME  = "dfzrlukqx";   // Dashboard 좌측 상단
+const CLOUDINARY_UPLOAD_PRESET = "snack_event"; // Settings → Upload → Upload presets
+
 /* Firebase 설정값 유효성 체크 */
 const IS_FB_OK = firebaseConfig.apiKey !== "YOUR_API_KEY";
-let db, storage;
+let db;
 if(IS_FB_OK){
   firebase.initializeApp(firebaseConfig);
-  db      = firebase.firestore();
-  storage = firebase.storage();
+  db = firebase.firestore();
 } else {
   console.warn('[간식대항전] Firebase 설정값을 YOUR_API_KEY에서 실제 값으로 교체하세요.');
 }
@@ -857,22 +863,43 @@ async function doSubmit(){
   btn.disabled=true;btn.textContent='참여 중...';
 
   try{
-    /* ── 1. 이미지 업로드 (선택 항목 — 실패해도 계속 진행) ── */
+    /* ── 1. 이미지 업로드 → Cloudinary (선택 항목 — 실패해도 계속 진행) ── */
     let imgUrl='';
     if(selFile){
       const pw=document.getElementById('progWrap'),pb=document.getElementById('progBar');
       pw.style.display='block';
+      pb.style.width='0%';
       try{
-        const ref=storage.ref(`receipts/${Date.now()}_${selFile.name}`);
-        const task=ref.put(selFile);
-        await withTimeout(
-          new Promise((res,rej)=>task.on('state_changed',
-            s=>{pb.style.width=Math.round(s.bytesTransferred/s.totalBytes*100)+'%'},rej,res)),
-          30000 /* 사진 업로드 최대 30초 */
+        const formData = new FormData();
+        formData.append('file', selFile);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        formData.append('folder', 'receipts');
+
+        /* XMLHttpRequest로 업로드 진행률 표시 */
+        imgUrl = await withTimeout(
+          new Promise((res, rej) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST',
+              `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`);
+            xhr.upload.onprogress = e => {
+              if(e.lengthComputable)
+                pb.style.width = Math.round(e.loaded / e.total * 100) + '%';
+            };
+            xhr.onload = () => {
+              if(xhr.status === 200){
+                const data = JSON.parse(xhr.responseText);
+                res(data.secure_url); /* HTTPS URL 반환 */
+              } else {
+                rej(new Error('Cloudinary 업로드 실패: ' + xhr.status));
+              }
+            };
+            xhr.onerror = () => rej(new Error('네트워크 오류 — 업로드 실패'));
+            xhr.send(formData);
+          }),
+          60000 /* 최대 60초 */
         );
-        imgUrl=await ref.getDownloadURL();
+        pb.style.width='100%';
       }catch(imgErr){
-        /* 이미지 업로드 실패 → 사진 없이 텍스트 데이터만 저장 */
         console.warn('[간식대항전] 이미지 업로드 실패, 텍스트만 저장합니다.', imgErr.message);
         pw.style.display='none';
       }

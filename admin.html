@@ -556,10 +556,10 @@ td.time{font-size:11px;color:var(--txt3)}
     <!-- 이미지 -->
     <img id="modalImg" src="" alt="인증사진" style="display:none;max-width:100%;max-height:75vh;display:none;object-fit:contain">
 
-    <!-- CORS 차단 등 로드 실패 시 대체 UI -->
+    <!-- 이미지 로드 실패 시 대체 UI -->
     <div id="modalErr" style="display:none;flex-direction:column;align-items:center;gap:12px;padding:32px 24px;text-align:center">
       <div style="font-size:32px">🖼️</div>
-      <div style="font-size:13px;color:var(--txt2)">이미지를 불러올 수 없습니다.<br>Firebase Storage CORS 설정을 확인하거나 아래 버튼으로 직접 열어주세요.</div>
+      <div style="font-size:13px;color:var(--txt2)">이미지를 불러올 수 없습니다.<br>아래 버튼으로 직접 열어주세요.</div>
       <a id="modalErrLink" href="#" target="_blank" rel="noopener"
          style="padding:8px 20px;background:rgba(245,200,66,.15);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:12px;font-weight:700;text-decoration:none">
         🔗 새 탭에서 원본 열기
